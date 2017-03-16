@@ -43,9 +43,9 @@ $app->configureMode('development', function () use ($app) {
         'database' => array(
             'db_host' => 'localhost',
             'db_port' => '',
-            'db_name' => 'mini',
+            'db_name' => 'dev_miniastar',
             'db_user' => 'root',
-            'db_pass' => 'your_password'
+            'db_pass' => 'root'
         )
     ));
 });
