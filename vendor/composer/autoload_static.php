@@ -12,13 +12,24 @@ class ComposerStaticInit203b32711e4f51c8955da690d280efaa
     );
 
     public static $prefixLengthsPsr4 = array (
+        'p' => 
+        array (
+            'phpssdb\\' => 8,
+            'phpFastCache\\' => 13,
+        ),
         'S' => 
         array (
             'Slim\\Views\\' => 11,
         ),
+        'P' => 
+        array (
+            'Psr\\Cache\\' => 10,
+            'Predis\\' => 7,
+        ),
         'M' => 
         array (
             'Mini\\' => 5,
+            'Medoo\\' => 6,
             'MatthiasMullie\\PathConverter\\' => 29,
             'MatthiasMullie\\Minify\\' => 22,
         ),
@@ -29,13 +40,33 @@ class ComposerStaticInit203b32711e4f51c8955da690d280efaa
     );
 
     public static $prefixDirsPsr4 = array (
+        'phpssdb\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/phpfastcache/phpssdb/src/phpssdb',
+        ),
+        'phpFastCache\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/phpfastcache/phpfastcache/src/phpFastCache',
+        ),
         'Slim\\Views\\' => 
         array (
             0 => __DIR__ . '/..' . '/slim/views',
         ),
+        'Psr\\Cache\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/psr/cache/src',
+        ),
+        'Predis\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/predis/predis/src',
+        ),
         'Mini\\' => 
         array (
             0 => __DIR__ . '/../..' . '/Mini',
+        ),
+        'Medoo\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/catfan/medoo/src',
         ),
         'MatthiasMullie\\PathConverter\\' => 
         array (

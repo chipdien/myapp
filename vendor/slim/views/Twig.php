@@ -150,4 +150,12 @@ class Twig extends \Slim\View
         }
         return $this->twigTemplateDirs;
     }
+
+    /**
+     * @param array $parserOptions
+     */
+    public function setParserOptions($parserOptions)
+    {
+        $this->parserOptions = $parserOptions;
+    }
 }

@@ -5,16 +5,27 @@
 // Configuration for error reporting, useful to show every little problem during development
 error_reporting(E_ALL);
 ini_set("display_errors", 1);
+session_start();
+date_default_timezone_set("Asia/Ho_Chi_Minh");
+
+
+define('AUTHOR', 'chipdien');
+define('COPYRIGHT', '2014 © FacebookHelper.');
 
 // Load Composer's PSR-4 autoloader (necessary to load Slim, Mini etc.)
 require '../vendor/autoload.php';
+require 'includes/functions.php';
 
 // Initialize Slim (the router/micro framework used)
 $app = new \Slim\Slim();
 
 // and define the engine used for the view @see http://twig.sensiolabs.org
 $app->view = new \Slim\Views\Twig();
+//$app->view->set('parserOptions', array('debug' => true));
 $app->view->setTemplatesDirectory("../Mini/view");
+
+$view = $app->view->getEnvironment();
+$view->addGlobal('session', $_SESSION);
 
 /******************************************* THE CONFIGS *******************************************************/
 
@@ -35,6 +46,7 @@ $app->configureMode('development', function () use ($app) {
         // DON'T overwrite your real .js files, always save into a different file
         //$minifier = new MatthiasMullie\Minify\JS('js/application.js');
         //$minifier->minify('js/application.minified.js');
+
     });
 
     // Set the configs for development environment
@@ -46,7 +58,16 @@ $app->configureMode('development', function () use ($app) {
             'db_name' => 'dev_miniastar',
             'db_user' => 'root',
             'db_pass' => 'root'
+        ),
+        'db' => array(
+            'database_type' => 'mysql',
+            'database_name' => 'dev_miniastar',
+            'server' => 'localhost',
+            'username' => 'root',
+            'password' => 'root',
+            'charset' => 'utf8'
         )
+
     ));
 });
 
@@ -61,21 +82,179 @@ $app->configureMode('production', function () use ($app) {
             'db_name' => '',
             'db_user' => '',
             'db_pass' => ''
+        ),
+        'db' => array(
+            'database_type' => 'mysql',
+            'database_name' => 'dev_miniastar',
+            'server' => 'localhost',
+            'username' => 'root',
+            'password' => 'root',
+            'charset' => 'utf8'
         )
     ));
 });
 
+
+use phpFastCache\CacheManager;
+use phpFastCache\Core\phpFastCache;
+
+CacheManager::setDefaultConfig([
+    "path" => sys_get_temp_dir(),
+]);
+$cache = CacheManager::getInstance('files');
+
 /******************************************** THE MODEL ********************************************************/
 
 // Initialize the model, pass the database configs. $model can now perform all methods from Mini\model\model.php
+use Medoo\Medoo;
+$db = new Medoo($app->config('db'));
+
 $model = new \Mini\Model\Model($app->config('database'));
+
+
+$authenticate = function ($app) {
+    return function () use ($app) {
+        if (!isset($_SESSION['fbuser'])) {
+            $_SESSION['urlRedirect'] = $app->request()->getPathInfo();
+            $app->flash('errors', ['token' => 'Cần phải đăng nhập để sử dụng chức năng này']);
+            $app->redirect('/login');
+        }
+    };
+};
+
+
+
 
 /************************************ THE ROUTES / CONTROLLERS *************************************************/
 
 // GET request on homepage, simply show the view template index.twig
-$app->get('/', function () use ($app) {
-    $app->render('index.twig');
+$app->get('/', function () use ($app, $db) {
+    $data = [
+        'page' => [
+            'title' => 'FacebookHelper',
+            'description' => '',
+            'author' => AUTHOR,
+            'bodyclass' => 'page-container-bg-solid',
+            'copyright' => COPYRIGHT
+        ]
+    ];
+
+    $app->render('index.twig', $data);
 });
+
+$app->get('/login', function () use ($app) {
+    if (isset($_SESSION['fbuser'])) {
+        $app->redirect('/');
+    }
+    $data = [
+        'page' => [
+            'title' => 'Đăng nhập',
+            'description' => '',
+            'author' => AUTHOR,
+            'bodyclass' => 'login',
+            'copyright' => COPYRIGHT
+        ]
+    ];
+    $app->render('login.twig', $data);
+});
+
+$app->post('/login', function () use ($app, $db) {
+    $errors = array();
+    $token = $app->request()->post('token_htc');
+
+    if (!$token) {
+        $errors['token'] = "Vui lòng nhập Token để đăng nhập";
+    } else {
+        $fbuser = getData('me?fields=id,name,picture,gender,locale,languages,link,third_party_id,installed,timezone,updated_time,verified,birthday,cover,currency,education,email,hometown,interested_in,location,political,religion,website,work,relationship_status,about,age_range,mobile_phone,favorite_athletes,favorite_teams,inspirational_people,sports,quotes,significant_other,suggested_groups', $token);
+        if (isset($fbuser['error'])) {
+            $errors['token'] = "Token vô hiệu, vui lòng thử Token khác";
+        } else {
+            $db_array = array(
+                'fib' => $fbuser['id'],
+                'token' => $token,
+                'name' => $fbuser['name'],
+                'email' => $fbuser['email'],
+                'data' => $fbuser,
+                'status' => 1,
+                'created_at'=> date('Y-m-d H:i:s')
+            );
+            $check = $db->get('users', 'id', ['fid' => $fbuser['id']]);
+            if ($check) {
+                $db->update('users', ['status' => 1, 'data' => $fbuser, 'modified_at' => date('Y-m-d H:i:s')], ['id' => $check]);
+            } else {
+                $db->insert('users', $db_array);
+            }
+
+
+            $_SESSION['name'] = $fbuser['name'];
+            $_SESSION['email'] = $fbuser['email'];
+            $_SESSION['uid'] = $fbuser['id'];
+            $_SESSION['token'] = $token;
+            $_SESSION['fbuser'] = $fbuser;
+
+            if (isset($_SESSION['urlRedirect'])) {
+                $tmp = $_SESSION['urlRedirect'];
+                unset($_SESSION['urlRedirect']);
+                $app->redirect($tmp);
+            }
+            $app->redirect('/');
+        }
+    }
+
+    if (count($errors) > 0) {
+        $app->flash('errors', $errors);
+        $app->redirect('/login');
+    }
+
+//    if (isset($_POST['token_htc'])) {
+////        $token = $_POST['token_htc'];
+//        $fbuser = getData('me?fields=id,name,picture,gender,locale,languages,link,third_party_id,installed,timezone,updated_time,verified,birthday,cover,currency,education,email,hometown,interested_in,location,political,religion,website,work,relationship_status,about,age_range,mobile_phone,favorite_athletes,favorite_teams,inspirational_people,sports,quotes,significant_other,suggested_groups', $token);
+//        if (isset($fbuser['error'])) {
+//            $data['error_msg'] = 'TOKEN vô hiệu, vui lòng thử token khác để đăng nhập!';
+//        } else {
+//            $db_array = array(
+//                'token' => $token,
+//                'name' => $fbuser['name'],
+//                'email' => $fbuser['email'],
+//                'data' => $fbuser,
+//                'status' => 1,
+//                'created_at'=> date('Y-m-d H:i:s')
+//            );
+//            $db->insert('users', $db_array);
+//
+//            $_SESSION['name'] = $fbuser['name'];
+//            $_SESSION['email'] = $fbuser['email'];
+//            $_SESSION['uid'] = $fbuser['id'];
+//            $_SESSION['token'] = $token;
+//            $_SESSION['fbuser'] = $fbuser;
+//
+//            if (isset($_SESSION['urlRedirect'])) {
+//                $tmp = $_SESSION['urlRedirect'];
+//                unset($_SESSION['urlRedirect']);
+//                $app->redirect($tmp);
+//            }
+//            $app->redirect('/');
+//
+//        }
+//
+//    } else {
+//        $data['error_msg'] = 'Phải nhập Token để đăng nhập hệ thống!';
+//    }
+
+//    $app->render('login.twig', $data);
+});
+
+$app->get('/logout', function () use ($app, $db) {
+    if (isset($_SESSION['token'])) {
+        $token = $_SESSION['token'];
+        $db->update('users', ['status' => 0], ['token' => $token]);
+    }
+
+    session_destroy();
+    $app->redirect('/');
+});
+
+
 
 // GET request on /subpage, simply show the view template subpage.twig
 $app->get('/subpage', function () use ($app) {
@@ -173,7 +352,25 @@ $app->group('/songs', function () use ($app, $model) {
 
 });
 
+
+$app->get('/getposts', $authenticate($app), function () use ($app, $db) {
+    $data = array();
+
+
+    $app->render('get_posts.twig', $data);
+});
+
+
+
+
+
+
+
+
+
 /******************************************* RUN THE APP *******************************************************/
 
 $app->run();
+
+print_r($_SESSION);
 
